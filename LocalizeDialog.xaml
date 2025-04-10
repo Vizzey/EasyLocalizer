@@ -1,15 +1,55 @@
 ﻿<Window x:Class="LocalizeExtension.LocalizeDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Localize" Height="200" Width="400" WindowStartupLocation="CenterOwner">
-    <StackPanel Margin="10">
-        <TextBlock Text="Name:" Margin="0,0,0,5"/>
-        <TextBox x:Name="txtName" IsReadOnly="True" Margin="0,0,0,10"/>
-        <TextBlock Text="Value:" Margin="0,0,0,5"/>
-        <TextBox x:Name="txtValue" Margin="0,0,0,10"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="OK" Width="75" Margin="0,0,5,0" Click="Ok_Click"/>
-            <Button Content="Cancel" Width="75" Click="Cancel_Click"/>
+        Title="Localize"
+        Width="500"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow"
+        WindowStartupLocation="CenterOwner"
+        MinHeight="150"
+        MaxWidth="500"
+        Activated="Window_Activated">
+    <Border Margin="10" Padding="10,10,10,15">
+        <StackPanel>
+            <!-- Name -->
+            <TextBlock Text="Name:" Margin="0,0,0,5"/>
+            <TextBox x:Name="txtName" IsReadOnly="True" Margin="0,0,0,10"/>
+
+            <!-- Base Value (обязательное поле) -->
+            <TextBlock Text="Value*:" Margin="0,0,0,5"/>
+            <TextBox x:Name="txtValue" Margin="0,0,0,10"/>
+
+            <!-- Дополнительные локали -->
+            <ItemsControl x:Name="LocalesPanel" Margin="0,0,0,10">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="{Binding Label}" Margin="0,0,0,2"/>
+                            <TextBox Text="{Binding Value}" Width="450"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Options Expander -->
+            <Expander Header="Options" Margin="0,0,0,10" IsExpanded="True">
+                <StackPanel Margin="10,5,0,0">
+                    <TextBlock Text="Key Prefix:"/>
+                    <TextBox x:Name="txtPrefix" Text="Loc" Margin="0,0,0,10"/>
+                    <TextBlock Text="ResX File Path:"/>
+                    <DockPanel>
+                        <TextBox x:Name="txtResXPath" Margin="0,0,5,0" Width="350"/>
+                        <Button Content="Выбрать..." Click="BrowseResx_Click"/>
+                    </DockPanel>
+                </StackPanel>
+            </Expander>
+
+            <!-- Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="OK" Width="75" Margin="0,0,5,0" Click="Ok_Click"/>
+                <Button Content="Cancel" Width="75" Click="Cancel_Click"/>
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </Border>
 </Window>

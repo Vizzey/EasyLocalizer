@@ -8,28 +8,33 @@ using EnvDTE80;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
-using Project = EnvDTE.Project;
 
 namespace LocalizeExtension
 {
     internal sealed class LocalizeCommand
     {
         public const int CommandId = 0x0100;
-        public static readonly Guid CommandSet = new Guid("A6F9D371-C156-467C-AB35-9A8F0C3CF528");
+        public static readonly Guid CommandSet =
+            new Guid("A6F9D371-C156-467C-AB35-9A8F0C3CF528");
+
         private readonly AsyncPackage package;
 
-        private LocalizeCommand(AsyncPackage package, OleMenuCommandService commandService)
+        private LocalizeCommand(AsyncPackage package,
+                                OleMenuCommandService commandService)
         {
             this.package = package;
-            var cmd = new CommandID(CommandSet, CommandId);
-            var menuItem = new MenuCommand(Execute, cmd);
-            commandService.AddCommand(menuItem);
+            var cmdId = new CommandID(CommandSet, CommandId);
+            var menu = new MenuCommand(this.Execute, cmdId);
+            commandService.AddCommand(menu);
         }
 
         public static async Task InitializeAsync(AsyncPackage package)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-            var mcs = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
+            await ThreadHelper.JoinableTaskFactory
+                              .SwitchToMainThreadAsync(package.DisposalToken);
+            var mcs = await package.GetServiceAsync(
+                        typeof(IMenuCommandService))
+                      as OleMenuCommandService;
             new LocalizeCommand(package, mcs);
         }
 
@@ -37,29 +42,73 @@ namespace LocalizeExtension
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Получаем DTE и выделение
             var dte = (DTE2)package.GetServiceAsync(typeof(DTE)).Result;
             var sel = dte.ActiveDocument?.Selection as TextSelection;
-            if (sel == null || string.IsNullOrWhiteSpace(sel.Text)) return;
+            if (sel == null) return;
 
-            // Оригинал и очищенный для диалога
-            string original = sel.Text.Trim();
-            string cleanedForDialog = original;
-            if (cleanedForDialog.Length > 1 && cleanedForDialog.StartsWith("\"") && cleanedForDialog.EndsWith("\""))
-                cleanedForDialog = cleanedForDialog.Substring(1, cleanedForDialog.Length - 2);
+            // 1) Расширяем до слова, если нет выделения
+            if (string.IsNullOrWhiteSpace(sel.Text))
+            {
+                var tp = sel.ActivePoint;
+                var epStart = tp.CreateEditPoint();
+                var epEnd = tp.CreateEditPoint();
 
-            // Диалог
-            var dialog = new LocalizeDialog(cleanedForDialog);
+                // влево
+                while (!epStart.AtStartOfDocument)
+                {
+                    epStart.MoveToAbsoluteOffset(
+                        epStart.AbsoluteCharOffset - 1);
+                    char c = epStart.GetText(1)[0];
+                    if (char.IsWhiteSpace(c) || c == '"' || c == '<' || c == '>')
+                    {
+                        epStart.MoveToAbsoluteOffset(
+                            epStart.AbsoluteCharOffset + 1);
+                        break;
+                    }
+                }
+                // вправо
+                while (!epEnd.AtEndOfDocument)
+                {
+                    char c = epEnd.GetText(1)[0];
+                    if (char.IsWhiteSpace(c) || c == '"' || c == '<' || c == '>')
+                        break;
+                    epEnd.MoveToAbsoluteOffset(
+                        epEnd.AbsoluteCharOffset + 1);
+                }
+
+                sel.MoveToAbsoluteOffset(epStart.AbsoluteCharOffset);
+                sel.MoveToAbsoluteOffset(epEnd.AbsoluteCharOffset, true);
+            }
+
+            // 2) Получаем и тримим
+            string original = sel.Text?.Trim();
+            if (string.IsNullOrEmpty(original)) return;
+
+            // 3) Очищаем внешние кавычки для диалога
+            string cleaned = original;
+            if (cleaned.Length > 1 &&
+                cleaned.StartsWith("\"") &&
+                cleaned.EndsWith("\""))
+            {
+                cleaned = cleaned.Substring(1, cleaned.Length - 2);
+            }
+
+            // 4) Диалог
+            var dialog = new LocalizeDialog(cleaned);
             if (dialog.ShowDialog() != true) return;
+
+            // 5) Читаем из диалога
+            string prefix = dialog.KeyPrefix;
+            string resxRelPath = dialog.ResxPath;
             string resName = dialog.ResourceName;
             string resValue = dialog.ResourceValue;
 
-            // Добавляем в resx
-            if (!AddResourceEntry(dte, resName, resValue))
+            // 6) Запись в базовый .resx
+            if (!AddResourceEntry(dte, resName, resValue, resxRelPath))
             {
                 VsShellUtilities.ShowMessageBox(
                     package,
-                    "Не удалось обновить Localization.resx",
+                    $"Не удалось обновить файл ресурсов:\n{resxRelPath}",
                     "Ошибка",
                     OLEMSGICON.OLEMSGICON_CRITICAL,
                     OLEMSGBUTTON.OLEMSGBUTTON_OK,
@@ -67,72 +116,119 @@ namespace LocalizeExtension
                 return;
             }
 
-            // EditPoints для диапазона
+            // 6.1) Запись в локализованные .resx
+            foreach (var kv in dialog.LocaleValues)
+            {
+                var culture = kv.Key;
+                var val = kv.Value;
+                var dir = Path.GetDirectoryName(resxRelPath);
+                var baseName = Path.GetFileNameWithoutExtension(resxRelPath);
+                var localizedRel =
+                    Path.Combine(dir, $"{baseName}.{culture}.resx");
+                AddResourceEntry(dte, resName, val, localizedRel);
+            }
+
+            // 7) Проверка: если вокруг выделенного уже есть @prefix["..."], не оборачиваем
+            {
+                string wrapStart = "@" + prefix + "[\"";
+                string wrapEnd = "\"]";
+
+                var startPtCtx = sel.TopPoint.CreateEditPoint();
+                var endPtCtx = sel.BottomPoint.CreateEditPoint();
+                int startOffset = startPtCtx.AbsoluteCharOffset;
+                int endOffset = endPtCtx.AbsoluteCharOffset;
+
+                int prefixLen = wrapStart.Length;
+                int suffixLen = wrapEnd.Length;
+                string left = "";
+                string right = "";
+
+                if (startOffset > prefixLen)
+                {
+                    startPtCtx.MoveToAbsoluteOffset(startOffset - prefixLen);
+                    left = startPtCtx.GetText(prefixLen);
+                }
+                endPtCtx.MoveToAbsoluteOffset(endOffset);
+                right = endPtCtx.GetText(suffixLen);
+
+                if (left == wrapStart && right == wrapEnd)
+                {
+                    // уже обёрнуто — выходим
+                    return;
+                }
+            }
+
+            // 8) Формируем вставку
+            bool hasQuotes = original.Length > 1 &&
+                             original.StartsWith("\"") &&
+                             original.EndsWith("\"");
+            string inner = hasQuotes
+                ? original.Substring(1, original.Length - 2)
+                : original;
+            string newText = $"@{prefix}[\"{inner}\"]";
+
+            // 9) Заменяем текст
             var startPt = sel.TopPoint.CreateEditPoint();
             var endPt = sel.BottomPoint.CreateEditPoint();
-
             int start = startPt.AbsoluteCharOffset;
             int end = endPt.AbsoluteCharOffset;
-            int docStart = startPt.Parent.StartPoint.AbsoluteCharOffset;
-            int docEnd = endPt.Parent.EndPoint.AbsoluteCharOffset;
+            int ds = startPt.Parent.StartPoint.AbsoluteCharOffset;
+            int de = endPt.Parent.EndPoint.AbsoluteCharOffset;
 
-            // Проверяем кавычки вокруг
-            string before = "";
-            if (start > docStart)
+            string before = "", after = "";
+            if (start > ds)
             {
                 startPt.MoveToAbsoluteOffset(start - 1);
                 before = startPt.GetText(1);
             }
-            string after = "";
-            if (end < docEnd)
+            if (end < de)
             {
                 endPt.MoveToAbsoluteOffset(end);
                 after = endPt.GetText(1);
             }
-
-            bool expand = before == "\"" && after == "\"";
-            if (expand)
+            if (before == "\"" && after == "\"")
             {
                 start--; end++;
             }
 
-            // Получаем полный текст диапазона
             startPt.MoveToAbsoluteOffset(start);
             endPt.MoveToAbsoluteOffset(end);
-            string full = startPt.GetText(endPt);
-
-            // Очищаем внешние кавычки, если расширяли
-            string cleaned = full;
-            if (expand && full.Length > 1 && full.StartsWith("\"") && full.EndsWith("\""))
-                cleaned = full.Substring(1, full.Length - 2);
-
-            // Формируем итоговую строку
-            string newText = $"@Loc[\"{cleaned}\"]";
-
-            // Заменяем диапазон
-            startPt.ReplaceText(endPt, newText, (int)vsEPReplaceTextOptions.vsEPReplaceTextAutoformat);
+            startPt.ReplaceText(endPt, newText,
+                (int)vsEPReplaceTextOptions.vsEPReplaceTextAutoformat);
         }
 
-        private bool AddResourceEntry(DTE2 dte, string resName, string resValue)
+        private bool AddResourceEntry(DTE2 dte, string name,
+                                      string value,
+                                      string resxRelPath)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            foreach (Project proj in dte.Solution.Projects)
+
+            var proj = dte.ActiveDocument.ProjectItem.ContainingProject;
+            var projDir = Path.GetDirectoryName(proj.FullName);
+            var full = Path.Combine(projDir, resxRelPath);
+            if (!File.Exists(full)) return false;
+
+            var doc = XDocument.Load(full);
+            var root = doc.Root;
+            var data = root.Elements("data")
+                           .FirstOrDefault(x =>
+                               (string)x.Attribute("name") == name);
+
+            if (data == null)
             {
-                string dir = Path.GetDirectoryName(proj.FullName);
-                string resx = Path.Combine(dir, "Resources", "Languages", "Localization.resx");
-                if (File.Exists(resx))
-                {
-                    var doc = XDocument.Load(resx);
-                    var data = new XElement("data",
-                        new XAttribute("name", resName),
-                        new XAttribute(XNamespace.Xml + "space", "preserve"),
-                        new XElement("value", resValue));
-                    doc.Root.Add(data);
-                    doc.Save(resx);
-                    return true;
-                }
+                data = new XElement("data",
+                    new XAttribute("name", name),
+                    new XAttribute(XNamespace.Xml + "space", "preserve"),
+                    new XElement("value", value));
+                root.Add(data);
             }
-            return false;
+            else
+            {
+                data.Element("value").Value = value;
+            }
+
+            doc.Save(full);
+            return true;
         }
     }
 }
