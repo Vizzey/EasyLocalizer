@@ -17,7 +17,7 @@ namespace EasyLocalizer
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
             await this.RegisterCommandsAsync();
-            LocalizeCommand.Initialize(this);
+            await LocalizeCommand.InitializeAsync(this);
         }
     }
 }
