@@ -26,6 +26,7 @@ namespace LocalizeExtension
         public string ResxPath => txtResXPath.Text.Trim();
 
         private bool _isFirstLoad = true;
+        private readonly string _defaultValue;
 
         private class LocaleField
         {
@@ -36,25 +37,25 @@ namespace LocalizeExtension
         private readonly List<LocaleField> _localeFields = new();
 
         public IReadOnlyDictionary<string, string> LocaleValues =>
-            _localeFields
-                .GroupBy(f => f.Label.ExtractCulture())
-                .ToDictionary(g => g.Key, g => g.First().Value.Trim());
+          _localeFields
+              .GroupBy(f => f.Label.ExtractCulture())
+              .ToDictionary(g => g.Key, g => g.First().Value.Trim());
 
         public LocalizeDialog(string defaultName)
         {
             InitializeComponent();
             txtName.Text = defaultName;
+            _defaultValue = defaultName;
             LoadSettings();
-
-            this.PreviewKeyDown += LocalizeDialog_PreviewKeyDown;
+            PreviewKeyDown += LocalizeDialog_PreviewKeyDown;
         }
 
         private void LocalizeDialog_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
-                this.DialogResult = false;
-                this.Close();
+                DialogResult = false;
+                Close();
                 e.Handled = true;
             }
             else if (e.Key == Key.Enter)
@@ -94,6 +95,9 @@ namespace LocalizeExtension
 
             PopulateBaseValue();
             PopulateLocaleFields();
+
+            if (string.IsNullOrEmpty(txtValue.Text))
+                txtValue.Text = _defaultValue;
 
             txtValue.Focus();
             txtValue.SelectAll();
@@ -158,12 +162,11 @@ namespace LocalizeExtension
             };
             if (dlg.ShowDialog() == true)
             {
-                var projRoot = GetProjectRoot();
+                var root = GetProjectRoot();
                 var path = dlg.FileName;
-                if (projRoot != null &&
-                    path.StartsWith(projRoot, StringComparison.OrdinalIgnoreCase))
+                if (root != null && path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 {
-                    path = path.Substring(projRoot.Length)
+                    path = path.Substring(root.Length)
                                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 }
                 txtResXPath.Text = path;
