@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
-  <Metadata>
-    <Identity Id="EasyLocalizer.ccda0abc-3ca7-40fd-928b-fb61f99d9c4d" Version="1.0" Language="en-US" Publisher="Vizzey" />
-    <DisplayName>EasyLocalizer</DisplayName>
-    <Description>Empty VSIX Project.</Description>
-    <Icon>Resources\Icon.png</Icon>
-    <PreviewImage>Resources\Icon.png</PreviewImage>
-  </Metadata>
-  <Installation>
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
-      <ProductArchitecture>amd64</ProductArchitecture>
-    </InstallationTarget>
-  </Installation>
-  <Prerequisites>
-    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,)" DisplayName="Visual Studio core editor" />
-  </Prerequisites>
-  <Assets>
-    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
-  </Assets>
+    <Metadata>
+        <Identity Id="EasyLocalizer.ccda0abc-3ca7-40fd-928b-fb61f99d9c4d" Version="1.0" Language="en-US" Publisher="Vizzey" />
+        <DisplayName>EasyLocalizer</DisplayName>
+        <Description xml:space="preserve">EasyLocalizer is a Visual Studio extension that makes translating your application a breeze. With a simple right‑click, you can pull any piece of text into your resource files and instantly replace it in code with a neat lookup. The built‑in dialog automatically discovers all your localized resource files (for example, French, Russian, etc.) and lets you enter translations side by side. Your settings—like the lookup prefix and which .resx file to use—are remembered between sessions. It even knows not to wrap something twice if it’s already localized. Keyboard shortcuts and smart selection handling mean you spend less time fiddling with quotes and more time writing features. Overall, EasyLocalizer streamlines the process of extracting, translating, and maintaining strings in your app, so you can focus on what really matters.</Description>
+        <Icon>Resources\Icon.png</Icon>
+        <PreviewImage>Resources\Icon.png</PreviewImage>
+        <Tags>Localize, Localization, DI</Tags>
+    </Metadata>
+    <Installation>
+        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
+    </Installation>
+    <Prerequisites>
+        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,)" DisplayName="Visual Studio core editor" />
+    </Prerequisites>
+    <Assets>
+        <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    </Assets>
 </PackageManifest>

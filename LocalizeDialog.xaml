@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Localize"
         Width="500"
+        Icon="pack://application:,,,/EasyLocalizer;component/Resources/WindowIcon.ico"
         SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStyle="SingleBorderWindow"
@@ -12,15 +13,12 @@
         Activated="Window_Activated">
     <Border Margin="10" Padding="10,10,10,15">
         <StackPanel>
-            <!-- Name -->
             <TextBlock Text="Name:" Margin="0,0,0,5"/>
             <TextBox x:Name="txtName" IsReadOnly="True" Margin="0,0,0,10"/>
 
-            <!-- Base Value (обязательное поле) -->
             <TextBlock Text="Value*:" Margin="0,0,0,5"/>
             <TextBox x:Name="txtValue" Margin="0,0,0,10"/>
 
-            <!-- Дополнительные локали -->
             <ItemsControl x:Name="LocalesPanel" Margin="0,0,0,10">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -32,7 +30,6 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- Options Expander -->
             <Expander Header="Options" Margin="0,0,0,10" IsExpanded="True">
                 <StackPanel Margin="10,5,0,0">
                     <TextBlock Text="Key Prefix:"/>
@@ -40,14 +37,13 @@
                     <TextBlock Text="ResX File Path:"/>
                     <DockPanel>
                         <TextBox x:Name="txtResXPath" Margin="0,0,5,0" Width="350"/>
-                        <Button Content="Выбрать..." Click="BrowseResx_Click"/>
+                        <Button Content="Browse..." Click="BrowseResx_Click"/>
                     </DockPanel>
                 </StackPanel>
             </Expander>
 
-            <!-- Buttons -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="OK" Width="75" Margin="0,0,5,0" Click="Ok_Click"/>
+                <Button Content="OK" Width="75" Click="Ok_Click"/>
                 <Button Content="Cancel" Width="75" Click="Cancel_Click"/>
             </StackPanel>
         </StackPanel>

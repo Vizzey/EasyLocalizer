@@ -19,8 +19,7 @@ namespace LocalizeExtension
 
         private readonly AsyncPackage package;
 
-        private LocalizeCommand(AsyncPackage package,
-                                OleMenuCommandService commandService)
+        private LocalizeCommand(AsyncPackage package, OleMenuCommandService commandService)
         {
             this.package = package;
             var cmdId = new CommandID(CommandSet, CommandId);
@@ -46,45 +45,37 @@ namespace LocalizeExtension
             var sel = dte.ActiveDocument?.Selection as TextSelection;
             if (sel == null) return;
 
-            // 1) Расширяем до слова, если нет выделения
             if (string.IsNullOrWhiteSpace(sel.Text))
             {
                 var tp = sel.ActivePoint;
                 var epStart = tp.CreateEditPoint();
                 var epEnd = tp.CreateEditPoint();
 
-                // влево
                 while (!epStart.AtStartOfDocument)
                 {
-                    epStart.MoveToAbsoluteOffset(
-                        epStart.AbsoluteCharOffset - 1);
+                    epStart.MoveToAbsoluteOffset(epStart.AbsoluteCharOffset - 1);
                     char c = epStart.GetText(1)[0];
                     if (char.IsWhiteSpace(c) || c == '"' || c == '<' || c == '>')
                     {
-                        epStart.MoveToAbsoluteOffset(
-                            epStart.AbsoluteCharOffset + 1);
+                        epStart.MoveToAbsoluteOffset(epStart.AbsoluteCharOffset + 1);
                         break;
                     }
                 }
-                // вправо
                 while (!epEnd.AtEndOfDocument)
                 {
                     char c = epEnd.GetText(1)[0];
                     if (char.IsWhiteSpace(c) || c == '"' || c == '<' || c == '>')
                         break;
-                    epEnd.MoveToAbsoluteOffset(
-                        epEnd.AbsoluteCharOffset + 1);
+                    epEnd.MoveToAbsoluteOffset(epEnd.AbsoluteCharOffset + 1);
                 }
 
                 sel.MoveToAbsoluteOffset(epStart.AbsoluteCharOffset);
                 sel.MoveToAbsoluteOffset(epEnd.AbsoluteCharOffset, true);
             }
 
-            // 2) Получаем и тримим
             string original = sel.Text?.Trim();
             if (string.IsNullOrEmpty(original)) return;
 
-            // 3) Очищаем внешние кавычки для диалога
             string cleaned = original;
             if (cleaned.Length > 1 &&
                 cleaned.StartsWith("\"") &&
@@ -93,17 +84,14 @@ namespace LocalizeExtension
                 cleaned = cleaned.Substring(1, cleaned.Length - 2);
             }
 
-            // 4) Диалог
             var dialog = new LocalizeDialog(cleaned);
             if (dialog.ShowDialog() != true) return;
 
-            // 5) Читаем из диалога
             string prefix = dialog.KeyPrefix;
             string resxRelPath = dialog.ResxPath;
             string resName = dialog.ResourceName;
             string resValue = dialog.ResourceValue;
 
-            // 6) Запись в базовый .resx
             if (!AddResourceEntry(dte, resName, resValue, resxRelPath))
             {
                 VsShellUtilities.ShowMessageBox(
@@ -116,7 +104,6 @@ namespace LocalizeExtension
                 return;
             }
 
-            // 6.1) Запись в локализованные .resx
             foreach (var kv in dialog.LocaleValues)
             {
                 var culture = kv.Key;
@@ -128,7 +115,6 @@ namespace LocalizeExtension
                 AddResourceEntry(dte, resName, val, localizedRel);
             }
 
-            // 7) Проверка: если вокруг выделенного уже есть @prefix["..."], не оборачиваем
             {
                 string wrapStart = "@" + prefix + "[\"";
                 string wrapEnd = "\"]";
@@ -138,27 +124,19 @@ namespace LocalizeExtension
                 int startOffset = startPtCtx.AbsoluteCharOffset;
                 int endOffset = endPtCtx.AbsoluteCharOffset;
 
-                int prefixLen = wrapStart.Length;
-                int suffixLen = wrapEnd.Length;
-                string left = "";
-                string right = "";
-
-                if (startOffset > prefixLen)
+                string left = "", right = "";
+                if (startOffset > wrapStart.Length)
                 {
-                    startPtCtx.MoveToAbsoluteOffset(startOffset - prefixLen);
-                    left = startPtCtx.GetText(prefixLen);
+                    startPtCtx.MoveToAbsoluteOffset(startOffset - wrapStart.Length);
+                    left = startPtCtx.GetText(wrapStart.Length);
                 }
                 endPtCtx.MoveToAbsoluteOffset(endOffset);
-                right = endPtCtx.GetText(suffixLen);
+                right = endPtCtx.GetText(wrapEnd.Length);
 
                 if (left == wrapStart && right == wrapEnd)
-                {
-                    // уже обёрнуто — выходим
                     return;
-                }
             }
 
-            // 8) Формируем вставку
             bool hasQuotes = original.Length > 1 &&
                              original.StartsWith("\"") &&
                              original.EndsWith("\"");
@@ -167,7 +145,6 @@ namespace LocalizeExtension
                 : original;
             string newText = $"@{prefix}[\"{inner}\"]";
 
-            // 9) Заменяем текст
             var startPt = sel.TopPoint.CreateEditPoint();
             var endPt = sel.BottomPoint.CreateEditPoint();
             int start = startPt.AbsoluteCharOffset;
@@ -197,7 +174,8 @@ namespace LocalizeExtension
                 (int)vsEPReplaceTextOptions.vsEPReplaceTextAutoformat);
         }
 
-        private bool AddResourceEntry(DTE2 dte, string name,
+        private bool AddResourceEntry(DTE2 dte,
+                                      string name,
                                       string value,
                                       string resxRelPath)
         {

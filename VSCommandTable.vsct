@@ -10,7 +10,6 @@
 			<Bitmap guid="testIcon" href="Resources\bitmap.png" usedList="testIcon1"/>
 		</Bitmaps>
 		<Groups>
-			<!-- Помещаем группу почти в начало -->
 			<Group guid="Test" id="LocalizeMenuGroup" priority="0x0100">
 				<Parent guid="VSMainMenu" id="IDM_VS_CTXT_TEXTEDITOR"/>
 			</Group>
@@ -18,7 +17,6 @@
 		<Buttons>
 			<Button guid="Test" id="LocalizeCommandId" priority="0x0100" type="Button">
 				<Parent guid="Test" id="LocalizeMenuGroup"/>
-				<!-- Используем свой ресурс: слот 1 -->
 				<Icon guid="testIcon" id="testIcon1" />
 				<Strings>
 					<ButtonText>Localize</ButtonText>
@@ -38,7 +36,6 @@
 		<GuidSymbol name="VSMainMenu" value="{D309F791-903F-11D0-9EFC-00A0C911004F}">
 			<IDSymbol name="IDM_VS_CTXT_TEXTEDITOR" value="0x040D"/>
 		</GuidSymbol>
-		<!-- Наши иконки -->
 		<GuidSymbol name="MyImages" value="{8C001C71-D720-4FA0-AB16-89AFB73411ED}">
 			<IDSymbol name="LocalizeIcon" value="1"/>
 		</GuidSymbol>

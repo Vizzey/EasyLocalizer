@@ -4,13 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Xml.Linq;
 using Microsoft.Win32;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Settings;
 using MessageBox = System.Windows.MessageBox;
-using System.Windows.Input;
 
 namespace LocalizeExtension
 {
@@ -27,7 +27,6 @@ namespace LocalizeExtension
 
         private bool _isFirstLoad = true;
 
-        // Модель для динамических полей
         private class LocaleField
         {
             public string Label { get; set; }
@@ -36,13 +35,10 @@ namespace LocalizeExtension
 
         private readonly List<LocaleField> _localeFields = new();
 
-        /// <summary>
-        /// Словарь culture → введённое значение
-        /// </summary>
         public IReadOnlyDictionary<string, string> LocaleValues =>
-          _localeFields
-              .GroupBy(f => f.Label.ExtractCulture())
-              .ToDictionary(g => g.Key, g => g.First().Value.Trim());
+            _localeFields
+                .GroupBy(f => f.Label.ExtractCulture())
+                .ToDictionary(g => g.Key, g => g.First().Value.Trim());
 
         public LocalizeDialog(string defaultName)
         {
@@ -57,14 +53,12 @@ namespace LocalizeExtension
         {
             if (e.Key == Key.Escape)
             {
-                // Закрыть как Cancel
                 this.DialogResult = false;
                 this.Close();
                 e.Handled = true;
             }
             else if (e.Key == Key.Enter)
             {
-                // Сработать как OK
                 Ok_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
@@ -93,24 +87,20 @@ namespace LocalizeExtension
 
             if (string.IsNullOrWhiteSpace(txtResXPath.Text))
             {
-                MessageBox.Show("Пожалуйста, выберите файл ресурсов (.resx)", "Выбор файла ресурсов",
+                MessageBox.Show("Please select a resource file (.resx)", "Resource File Selection",
                                 MessageBoxButton.OK, MessageBoxImage.Information);
                 BrowseResx_Click(this, null);
             }
 
-            // Загружаем базовое значение из основного resx в txtValue  ← добавлено
-            PopulateBaseValue();                                            
-
+            PopulateBaseValue();
             PopulateLocaleFields();
 
-            // Ставим фокус в txtValue и выделяем весь текст            ← добавлено
-            txtValue.Focus();                                             
-            txtValue.SelectAll();                                        
+            txtValue.Focus();
+            txtValue.SelectAll();
         }
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            // При каждом активации окна обновляем поля локалей
             RefreshLocaleFields();
         }
 
@@ -134,14 +124,14 @@ namespace LocalizeExtension
 
             if (string.IsNullOrEmpty(ResourceName) || string.IsNullOrEmpty(ResourceValue))
             {
-                MessageBox.Show("Пожалуйста, заполните базовое значение (Value*)", "Ошибка",
+                MessageBox.Show("Please fill in the base value (Value*)", "Error",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             if (!File.Exists(ResxPath))
             {
-                MessageBox.Show($"Файл ресурсов не найден:\n{ResxPath}", "Ошибка",
+                MessageBox.Show($"Resource file not found:\n{ResxPath}", "Error",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -161,7 +151,7 @@ namespace LocalizeExtension
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Выберите файл ресурсов (.resx)",
+                Title = "Select a resource file (.resx)",
                 Filter = "ResX files (*.resx)|*.resx",
                 InitialDirectory = GetProjectRoot(),
                 FileName = txtResXPath.Text
@@ -169,7 +159,7 @@ namespace LocalizeExtension
             if (dlg.ShowDialog() == true)
             {
                 var projRoot = GetProjectRoot();
-                string path = dlg.FileName;
+                var path = dlg.FileName;
                 if (projRoot != null &&
                     path.StartsWith(projRoot, StringComparison.OrdinalIgnoreCase))
                 {
@@ -183,46 +173,43 @@ namespace LocalizeExtension
 
         private void RefreshLocaleFields()
         {
-            // Очищаем модель и ItemsControl
             _localeFields.Clear();
             LocalesPanel.ItemsSource = null;
-
-            // Заполняем заново
             PopulateLocaleFields();
         }
 
         private string GetProjectRoot() => Directory.GetCurrentDirectory();
 
-        private void PopulateBaseValue()  // ← добавлен
+        private void PopulateBaseValue()
         {
-            string fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
+            var fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
             if (!File.Exists(fullResx)) return;
+
             var doc = XDocument.Load(fullResx);
             var data = doc.Root.Elements("data")
                          .FirstOrDefault(d => (string)d.Attribute("name") == txtName.Text);
             if (data != null)
                 txtValue.Text = (string)data.Element("value");
-        }                                 // ← добавлен
+        }
 
         private void PopulateLocaleFields()
         {
-            string fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
+            var fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
             if (!File.Exists(fullResx)) return;
 
-            string dir = Path.GetDirectoryName(fullResx);
-            string baseName = Path.GetFileNameWithoutExtension(fullResx);
+            var dir = Path.GetDirectoryName(fullResx);
+            var baseName = Path.GetFileNameWithoutExtension(fullResx);
 
             foreach (var file in Directory.GetFiles(dir, $"{baseName}.*.resx"))
             {
-                string culture = Path.GetFileNameWithoutExtension(file)
-                                      .Substring(baseName.Length + 1);
+                var culture = Path.GetFileNameWithoutExtension(file)
+                                  .Substring(baseName.Length + 1);
                 var field = new LocaleField
                 {
                     Label = $"Value ({culture.ToUpper()}):",
                     Value = ""
                 };
 
-                // Загрузка существующего
                 var doc = XDocument.Load(file);
                 var data = doc.Root.Elements("data")
                              .FirstOrDefault(d => (string)d.Attribute("name") == txtName.Text);
@@ -240,10 +227,11 @@ namespace LocalizeExtension
     {
         public static string ExtractCulture(this string label)
         {
-            int start = label.IndexOf('(');
-            int end = label.IndexOf(')');
+            var start = label.IndexOf('(');
+            var end = label.IndexOf(')');
             if (start >= 0 && end > start)
-                return label.Substring(start + 1, end - start - 1).ToLowerInvariant();
+                return label.Substring(start + 1, end - start - 1)
+                            .ToLowerInvariant();
             return string.Empty;
         }
     }
