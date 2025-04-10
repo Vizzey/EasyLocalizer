@@ -41,32 +41,32 @@ namespace LocalizeExtension
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Получаем активный документ и выделенный текст через DTE
+            // 1. Получаем активный документ и выделенный текст
             DTE2 dte = (DTE2)ServiceProvider.GetService(typeof(DTE));
             var activeDoc = dte?.ActiveDocument;
-            if (activeDoc == null)
-            {
-                return;
-            }
+            if (activeDoc == null) return;
 
             TextSelection selection = activeDoc.Selection as TextSelection;
-            if (selection == null || string.IsNullOrWhiteSpace(selection.Text))
+            if (selection == null || string.IsNullOrWhiteSpace(selection.Text)) return;
+
+            // Сохраняем исходное выделение и очищаем от внешних кавычек
+            string originalSelection = selection.Text.Trim();
+            string cleanedForDialog = originalSelection;
+            if (cleanedForDialog.Length > 1 &&
+                cleanedForDialog.StartsWith("\"") &&
+                cleanedForDialog.EndsWith("\""))
             {
-                return;
+                cleanedForDialog = cleanedForDialog.Substring(1, cleanedForDialog.Length - 2);
             }
 
-            // Сохраняем выделенный текст
-            string selectedText = selection.Text.Trim();
-
-            // Открываем диалоговое окно для ввода Name и Value
-            var dialog = new LocalizeDialog(selectedText);
-            if (dialog.ShowDialog() != true)
-                return;
+            // 2. Вызов диалога с очищенным текстом
+            var dialog = new LocalizeDialog(cleanedForDialog);
+            if (dialog.ShowDialog() != true) return;
 
             string resourceName = dialog.ResourceName;
             string resourceValue = dialog.ResourceValue;
 
-            // Добавляем новую запись в файл Localization.resx
+            // 3. Добавляем запись в Localization.resx
             if (!AddResourceEntry(dte, resourceName, resourceValue))
             {
                 VsShellUtilities.ShowMessageBox(
@@ -79,11 +79,65 @@ namespace LocalizeExtension
                 return;
             }
 
-            // Заменяем выделенный текст на <p>@Loc["ТЕКСТ"]</p>
-            string replacedText = selection.Text.Replace(selectedText, $"@Loc[\"{selectedText}\"]");
-            // Если выделение находится внутри тега <p>…</p> можно добавить обертку, если требуется.
-            selection.Text = $"<p>{replacedText}</p>";
+            // 4. Работа с абсолютными смещениями
+            EnvDTE.EditPoint epStart = selection.TopPoint.CreateEditPoint();
+            EnvDTE.EditPoint epEnd = selection.BottomPoint.CreateEditPoint();
+
+            int startOffset = epStart.AbsoluteCharOffset;
+            int endOffset = epEnd.AbsoluteCharOffset;
+            int docStart = epStart.Parent.StartPoint.AbsoluteCharOffset;
+            int docEnd = epEnd.Parent.EndPoint.AbsoluteCharOffset;
+
+            // Читаем символы вокруг
+            string charBefore = "";
+            if (startOffset > docStart)
+            {
+                epStart.MoveToAbsoluteOffset(startOffset - 1);
+                charBefore = epStart.GetText(1);
+                epStart.MoveToAbsoluteOffset(startOffset);
+            }
+
+            string charAfter = "";
+            if (endOffset < docEnd)
+            {
+                epEnd.MoveToAbsoluteOffset(endOffset);
+                charAfter = epEnd.GetText(1);
+                epEnd.MoveToAbsoluteOffset(endOffset);
+            }
+
+            // 5. Расширение и замена
+            if (charBefore == "\"" && charAfter == "\"")
+            {
+                // Расширяем
+                epStart.MoveToAbsoluteOffset(startOffset - 1);
+                epEnd.MoveToAbsoluteOffset(endOffset + 1);
+
+                string fullText = epStart.GetText(epEnd);
+                // Убираем внешние кавычки
+                string cleaned = fullText;
+                if (fullText.Length > 1 && fullText.StartsWith("\"") && fullText.EndsWith("\""))
+                    cleaned = fullText.Substring(1, fullText.Length - 2);
+
+                // Вставляем @Loc
+                string newText = $"@Loc[\"{cleaned}\"]";
+                epStart.Delete(epEnd);
+                epStart.Insert(newText);
+            }
+            else
+            {
+                // 6. Простой вариант без кавычек
+                string newText = $"@Loc[\"{cleanedForDialog}\"]";
+                selection.Text = newText;
+            }
         }
+
+
+
+
+
+
+
+
 
         /// <summary>
         /// Находит файл Localization.resx относительно корня проекта и добавляет новую запись.
