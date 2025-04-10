@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+	<Extern href="stdidcmd.h"/>
+	<Extern href="vsshlids.h"/>
+	<Include href="KnownImageIds.vsct"/>
+	<Include href="VSGlobals.vsct"/>
+
+	<Commands package="Test">
+		<Groups>
+			<!-- Группа команд для контекстного меню текстового редактора -->
+			<Group guid="Test" id="LocalizeMenuGroup" priority="0x0600">
+				<Parent guid="VSMainMenu" id="IDM_VS_CTXT_TEXTEDITOR"/>
+			</Group>
+		</Groups>
+		<Buttons>
+			<Button guid="Test" id="LocalizeCommandId" priority="0x0100" type="Button">
+				<Parent guid="Test" id="LocalizeMenuGroup"/>
+				<!--<Icon guid="guidImages" id="bmpPic1"/>-->
+				<Strings>
+					<ButtonText>Localize</ButtonText>
+				</Strings>
+			</Button>
+		</Buttons>
+	</Commands>
+
+	<Symbols>
+		<!-- Определяем набор команд для вашего расширения -->
+		<GuidSymbol name="Test" value="{A6F9D371-C156-467C-AB35-9A8F0C3CF528}">
+			<IDSymbol name="LocalizeCommandId" value="0x0100"/>
+			<IDSymbol name="LocalizeMenuGroup" value="0x0001"/>
+		</GuidSymbol>
+		<!-- Стандартное родительское меню, содержащее контекстное меню редактора -->
+		<GuidSymbol name="VSMainMenu" value="{D309F791-903F-11D0-9EFC-00A0C911004F}">
+			<IDSymbol name="IDM_VS_CTXT_TEXTEDITOR" value="0x040D"/>
+		</GuidSymbol>
+		<!-- Символ для иконок -->
+		<GuidSymbol name="guidImages" value="{8C001C71-D720-4FA0-AB16-89AFB73411ED}"/>
+	</Symbols>
+
+	<KeyBindings>
+		<KeyBinding guid="Test" id="LocalizeCommandId" editor="guidVSStd97" key1="R" mod1="Ctrl+Alt"/>
+	</KeyBindings>
+</CommandTable>
