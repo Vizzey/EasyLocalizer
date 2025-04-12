@@ -1,4 +1,5 @@
-﻿using System;
+﻿// LocalizeDialog.xaml.cs
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -105,7 +106,7 @@ namespace LocalizeExtension
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            RefreshLocaleFields();
+            // Предотвращаем очистку полей при активации окна
         }
 
         private void SaveSettings()
@@ -176,9 +177,25 @@ namespace LocalizeExtension
 
         private void RefreshLocaleFields()
         {
+            var savedValues = _localeFields.ToDictionary(
+                f => f.Label,
+                f => f.Value
+            );
+
             _localeFields.Clear();
-            LocalesPanel.ItemsSource = null;
             PopulateLocaleFields();
+
+            // Восстанавливаем значения полей после обновления
+            foreach (var field in _localeFields)
+            {
+                if (savedValues.TryGetValue(field.Label, out var value))
+                {
+                    field.Value = value;
+                }
+            }
+
+            LocalesPanel.ItemsSource = null;
+            LocalesPanel.ItemsSource = _localeFields;
         }
 
         private string GetProjectRoot() => Directory.GetCurrentDirectory();
