@@ -1,5 +1,4 @@
-﻿// LocalizeDialog.xaml.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,14 +16,19 @@ namespace LocalizeExtension
 {
     public partial class LocalizeDialog : Window
     {
+        private readonly string _projectRoot;
         private const string CollectionPath = "LocalizeExtension\\Options";
         private const string PrefixKey = "KeyPrefix";
         private const string ResxPathKey = "ResxPath";
+        private const string UseAtSignKey = "UseAtSign";
 
         public string ResourceName { get; private set; }
         public string ResourceValue { get; private set; }
         public string KeyPrefix => txtPrefix.Text.Trim();
         public string ResxPath => txtResXPath.Text.Trim();
+
+        // Поле для запоминания выбранной опции (по умолчанию true – то есть, вариант с '@')
+        private bool _useAtSign = true;
 
         private bool _isFirstLoad = true;
         private readonly string _defaultValue;
@@ -38,17 +42,38 @@ namespace LocalizeExtension
         private readonly List<LocaleField> _localeFields = new();
 
         public IReadOnlyDictionary<string, string> LocaleValues =>
-          _localeFields
-              .GroupBy(f => f.Label.ExtractCulture())
-              .ToDictionary(g => g.Key, g => g.First().Value.Trim());
+            _localeFields
+                .GroupBy(f => f.Label.ExtractCulture())
+                .ToDictionary(g => g.Key, g => g.First().Value.Trim());
 
-        public LocalizeDialog(string defaultName)
+        // Если выбран пункт с собакой (первый пункт в ComboBox)
+        public bool UseAtSign => cmbSelectOption.SelectedIndex == 0;
+
+        public LocalizeDialog(string defaultName, string projectRoot)
         {
             InitializeComponent();
+            _projectRoot = projectRoot;
             txtName.Text = defaultName;
             _defaultValue = defaultName;
             LoadSettings();
             PreviewKeyDown += LocalizeDialog_PreviewKeyDown;
+        }
+
+        private void txtPrefix_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (cmbSelectOption == null)
+                return;
+
+            string prefix = txtPrefix.Text.Trim();
+            if (string.IsNullOrWhiteSpace(prefix))
+                prefix = "Loc";
+
+            cmbSelectOption.Items.Clear();
+            cmbSelectOption.Items.Add("@" + prefix + "[...]");
+            cmbSelectOption.Items.Add(prefix + "[...]");
+
+            // Устанавливаем выбранную опцию согласно сохранённому значению
+            cmbSelectOption.SelectedIndex = _useAtSign ? 0 : 1;
         }
 
         private void LocalizeDialog_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -71,20 +96,22 @@ namespace LocalizeExtension
             ThreadHelper.ThrowIfNotOnUIThread();
             var mgr = new ShellSettingsManager(ServiceProvider.GlobalProvider);
             var store = mgr.GetWritableSettingsStore(SettingsScope.UserSettings);
-
             if (store.CollectionExists(CollectionPath))
             {
                 if (store.PropertyExists(CollectionPath, PrefixKey))
                     txtPrefix.Text = store.GetString(CollectionPath, PrefixKey, "Loc");
                 if (store.PropertyExists(CollectionPath, ResxPathKey))
                     txtResXPath.Text = store.GetString(CollectionPath, ResxPathKey, "Resources/Localization.resx");
+                if (store.PropertyExists(CollectionPath, UseAtSignKey))
+                    _useAtSign = store.GetBoolean(CollectionPath, UseAtSignKey, true);
             }
         }
 
         protected override void OnContentRendered(EventArgs e)
         {
             base.OnContentRendered(e);
-            if (!_isFirstLoad) return;
+            if (!_isFirstLoad)
+                return;
             _isFirstLoad = false;
 
             if (string.IsNullOrWhiteSpace(txtResXPath.Text))
@@ -94,6 +121,7 @@ namespace LocalizeExtension
                 BrowseResx_Click(this, null);
             }
 
+            txtPrefix_TextChanged(null, null);
             PopulateBaseValue();
             PopulateLocaleFields();
 
@@ -106,7 +134,7 @@ namespace LocalizeExtension
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            // Предотвращаем очистку полей при активации окна
+            // Не очищаем значения при активации окна
         }
 
         private void SaveSettings()
@@ -114,33 +142,30 @@ namespace LocalizeExtension
             ThreadHelper.ThrowIfNotOnUIThread();
             var mgr = new ShellSettingsManager(ServiceProvider.GlobalProvider);
             var store = mgr.GetWritableSettingsStore(SettingsScope.UserSettings);
-
             if (!store.CollectionExists(CollectionPath))
                 store.CreateCollection(CollectionPath);
-
             store.SetString(CollectionPath, PrefixKey, txtPrefix.Text.Trim());
             store.SetString(CollectionPath, ResxPathKey, txtResXPath.Text.Trim());
+            // Сохраняем выбранную опцию (использование @)
+            store.SetBoolean(CollectionPath, UseAtSignKey, cmbSelectOption.SelectedIndex == 0);
         }
 
         private void Ok_Click(object sender, RoutedEventArgs e)
         {
             ResourceName = txtName.Text.Trim();
             ResourceValue = txtValue.Text.Trim();
-
             if (string.IsNullOrEmpty(ResourceName) || string.IsNullOrEmpty(ResourceValue))
             {
                 MessageBox.Show("Please fill in the base value (Value*)", "Error",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
             if (!File.Exists(ResxPath))
             {
                 MessageBox.Show($"Resource file not found:\n{ResxPath}", "Error",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
             SaveSettings();
             DialogResult = true;
             Close();
@@ -158,12 +183,12 @@ namespace LocalizeExtension
             {
                 Title = "Select a resource file (.resx)",
                 Filter = "ResX files (*.resx)|*.resx",
-                InitialDirectory = GetProjectRoot(),
+                InitialDirectory = _projectRoot,
                 FileName = txtResXPath.Text
             };
             if (dlg.ShowDialog() == true)
             {
-                var root = GetProjectRoot();
+                var root = _projectRoot;
                 var path = dlg.FileName;
                 if (root != null && path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 {
@@ -177,34 +202,23 @@ namespace LocalizeExtension
 
         private void RefreshLocaleFields()
         {
-            var savedValues = _localeFields.ToDictionary(
-                f => f.Label,
-                f => f.Value
-            );
-
+            var savedValues = _localeFields.ToDictionary(f => f.Label, f => f.Value);
             _localeFields.Clear();
             PopulateLocaleFields();
-
-            // Восстанавливаем значения полей после обновления
             foreach (var field in _localeFields)
             {
                 if (savedValues.TryGetValue(field.Label, out var value))
-                {
                     field.Value = value;
-                }
             }
-
             LocalesPanel.ItemsSource = null;
             LocalesPanel.ItemsSource = _localeFields;
         }
 
-        private string GetProjectRoot() => Directory.GetCurrentDirectory();
-
         private void PopulateBaseValue()
         {
-            var fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
-            if (!File.Exists(fullResx)) return;
-
+            var fullResx = Path.Combine(_projectRoot, txtResXPath.Text);
+            if (!File.Exists(fullResx))
+                return;
             var doc = XDocument.Load(fullResx);
             var data = doc.Root.Elements("data")
                          .FirstOrDefault(d => (string)d.Attribute("name") == txtName.Text);
@@ -214,31 +228,26 @@ namespace LocalizeExtension
 
         private void PopulateLocaleFields()
         {
-            var fullResx = Path.Combine(GetProjectRoot(), txtResXPath.Text);
-            if (!File.Exists(fullResx)) return;
-
+            var fullResx = Path.Combine(_projectRoot, txtResXPath.Text);
+            if (!File.Exists(fullResx))
+                return;
             var dir = Path.GetDirectoryName(fullResx);
             var baseName = Path.GetFileNameWithoutExtension(fullResx);
-
             foreach (var file in Directory.GetFiles(dir, $"{baseName}.*.resx"))
             {
-                var culture = Path.GetFileNameWithoutExtension(file)
-                                  .Substring(baseName.Length + 1);
+                var culture = Path.GetFileNameWithoutExtension(file).Substring(baseName.Length + 1);
                 var field = new LocaleField
                 {
                     Label = $"Value ({culture.ToUpper()}):",
                     Value = ""
                 };
-
                 var doc = XDocument.Load(file);
                 var data = doc.Root.Elements("data")
                              .FirstOrDefault(d => (string)d.Attribute("name") == txtName.Text);
                 if (data != null)
                     field.Value = (string)data.Element("value");
-
                 _localeFields.Add(field);
             }
-
             LocalesPanel.ItemsSource = _localeFields;
         }
     }
@@ -250,8 +259,7 @@ namespace LocalizeExtension
             var start = label.IndexOf('(');
             var end = label.IndexOf(')');
             if (start >= 0 && end > start)
-                return label.Substring(start + 1, end - start - 1)
-                            .ToLowerInvariant();
+                return label.Substring(start + 1, end - start - 1).ToLowerInvariant();
             return string.Empty;
         }
     }

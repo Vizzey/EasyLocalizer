@@ -1,5 +1,4 @@
-﻿// LocalizeCommand.cs
-using System;
+﻿using System;
 using System.ComponentModel.Design;
 using System.IO;
 using System.Linq;
@@ -16,8 +15,7 @@ namespace LocalizeExtension
     internal sealed class LocalizeCommand
     {
         public const int CommandId = 0x0100;
-        public static readonly Guid CommandSet =
-            new Guid("A6F9D371-C156-467C-AB35-9A8F0C3CF528");
+        public static readonly Guid CommandSet = new Guid("A6F9D371-C156-467C-AB35-9A8F0C3CF528");
 
         private readonly AsyncPackage package;
 
@@ -31,21 +29,18 @@ namespace LocalizeExtension
 
         public static async Task InitializeAsync(AsyncPackage package)
         {
-            await ThreadHelper.JoinableTaskFactory
-                              .SwitchToMainThreadAsync(package.DisposalToken);
-            var mcs = await package.GetServiceAsync(
-                        typeof(IMenuCommandService))
-                      as OleMenuCommandService;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
+            var mcs = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
             new LocalizeCommand(package, mcs);
         }
 
         private void Execute(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-
             var dte = (DTE2)package.GetServiceAsync(typeof(DTE)).Result;
             var sel = dte.ActiveDocument?.Selection as TextSelection;
-            if (sel == null) return;
+            if (sel == null)
+                return;
 
             if (string.IsNullOrWhiteSpace(sel.Text))
             {
@@ -70,24 +65,24 @@ namespace LocalizeExtension
                         break;
                     epEnd.MoveToAbsoluteOffset(epEnd.AbsoluteCharOffset + 1);
                 }
-
                 sel.MoveToAbsoluteOffset(epStart.AbsoluteCharOffset);
                 sel.MoveToAbsoluteOffset(epEnd.AbsoluteCharOffset, true);
             }
 
             string original = sel.Text?.Trim();
-            if (string.IsNullOrEmpty(original)) return;
+            if (string.IsNullOrEmpty(original))
+                return;
 
             string cleaned = original;
-            if (cleaned.Length > 1 &&
-                cleaned.StartsWith("\"") &&
-                cleaned.EndsWith("\""))
-            {
+            if (cleaned.Length > 1 && cleaned.StartsWith("\"") && cleaned.EndsWith("\""))
                 cleaned = cleaned.Substring(1, cleaned.Length - 2);
-            }
 
-            var dialog = new LocalizeDialog(cleaned);
-            if (dialog.ShowDialog() != true) return;
+            var proj = dte.ActiveDocument.ProjectItem.ContainingProject;
+            var projectRoot = Path.GetDirectoryName(proj.FullName);
+
+            var dialog = new LocalizeDialog(cleaned, projectRoot);
+            if (dialog.ShowDialog() != true)
+                return;
 
             string prefix = dialog.KeyPrefix;
             string resxRelPath = dialog.ResxPath;
@@ -96,8 +91,7 @@ namespace LocalizeExtension
 
             if (!AddResourceEntry(dte, resName, resValue, resxRelPath))
             {
-                VsShellUtilities.ShowMessageBox(
-                    package,
+                VsShellUtilities.ShowMessageBox(package,
                     $"Не удалось обновить файл ресурсов:\n{resxRelPath}",
                     "Ошибка",
                     OLEMSGICON.OLEMSGICON_CRITICAL,
@@ -112,40 +106,32 @@ namespace LocalizeExtension
                 var val = kv.Value;
                 var dir = Path.GetDirectoryName(resxRelPath);
                 var baseName = Path.GetFileNameWithoutExtension(resxRelPath);
-                var localizedRel =
-                    Path.Combine(dir, $"{baseName}.{culture}.resx");
+                var localizedRel = Path.Combine(dir, $"{baseName}.{culture}.resx");
                 AddResourceEntry(dte, resName, val, localizedRel);
             }
 
+            bool useAtSign = dialog.UseAtSign;
+            string wrapStart = useAtSign ? "@" + prefix + "[\"" : prefix + "[\"";
+            string wrapEnd = "\"]";
+
+            var startPtCtx = sel.TopPoint.CreateEditPoint();
+            var endPtCtx = sel.BottomPoint.CreateEditPoint();
+            int startOffset = startPtCtx.AbsoluteCharOffset;
+            int endOffset = endPtCtx.AbsoluteCharOffset;
+            string left = "", right = "";
+            if (startOffset > wrapStart.Length)
             {
-                string wrapStart = "@" + prefix + "[\"";
-                string wrapEnd = "\"]";
-
-                var startPtCtx = sel.TopPoint.CreateEditPoint();
-                var endPtCtx = sel.BottomPoint.CreateEditPoint();
-                int startOffset = startPtCtx.AbsoluteCharOffset;
-                int endOffset = endPtCtx.AbsoluteCharOffset;
-
-                string left = "", right = "";
-                if (startOffset > wrapStart.Length)
-                {
-                    startPtCtx.MoveToAbsoluteOffset(startOffset - wrapStart.Length);
-                    left = startPtCtx.GetText(wrapStart.Length);
-                }
-                endPtCtx.MoveToAbsoluteOffset(endOffset);
-                right = endPtCtx.GetText(wrapEnd.Length);
-
-                if (left == wrapStart && right == wrapEnd)
-                    return;
+                startPtCtx.MoveToAbsoluteOffset(startOffset - wrapStart.Length);
+                left = startPtCtx.GetText(wrapStart.Length);
             }
+            endPtCtx.MoveToAbsoluteOffset(endOffset);
+            right = endPtCtx.GetText(wrapEnd.Length);
+            if (left == wrapStart && right == wrapEnd)
+                return;
 
-            bool hasQuotes = original.Length > 1 &&
-                             original.StartsWith("\"") &&
-                             original.EndsWith("\"");
-            string inner = hasQuotes
-                ? original.Substring(1, original.Length - 2)
-                : original;
-            string newText = $"@{prefix}[\"{inner}\"]";
+            bool hasQuotes = original.Length > 1 && original.StartsWith("\"") && original.EndsWith("\"");
+            string inner = hasQuotes ? original.Substring(1, original.Length - 2) : original;
+            string newText = useAtSign ? $"@{prefix}[\"{inner}\"]" : $"{prefix}[\"{inner}\"]";
 
             var startPt = sel.TopPoint.CreateEditPoint();
             var endPt = sel.BottomPoint.CreateEditPoint();
@@ -153,7 +139,6 @@ namespace LocalizeExtension
             int end = endPt.AbsoluteCharOffset;
             int ds = startPt.Parent.StartPoint.AbsoluteCharOffset;
             int de = endPt.Parent.EndPoint.AbsoluteCharOffset;
-
             string before = "", after = "";
             if (start > ds)
             {
@@ -167,33 +152,26 @@ namespace LocalizeExtension
             }
             if (before == "\"" && after == "\"")
             {
-                start--; end++;
+                start--;
+                end++;
             }
-
             startPt.MoveToAbsoluteOffset(start);
             endPt.MoveToAbsoluteOffset(end);
-            startPt.ReplaceText(endPt, newText,
-                (int)vsEPReplaceTextOptions.vsEPReplaceTextAutoformat);
+            startPt.ReplaceText(endPt, newText, (int)vsEPReplaceTextOptions.vsEPReplaceTextAutoformat);
         }
 
-        private bool AddResourceEntry(DTE2 dte,
-                                      string name,
-                                      string value,
-                                      string resxRelPath)
+        private bool AddResourceEntry(DTE2 dte, string name, string value, string resxRelPath)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-
             var proj = dte.ActiveDocument.ProjectItem.ContainingProject;
             var projDir = Path.GetDirectoryName(proj.FullName);
             var full = Path.Combine(projDir, resxRelPath);
-            if (!File.Exists(full)) return false;
+            if (!File.Exists(full))
+                return false;
 
             var doc = XDocument.Load(full);
             var root = doc.Root;
-            var data = root.Elements("data")
-                           .FirstOrDefault(x =>
-                               (string)x.Attribute("name") == name);
-
+            var data = root.Elements("data").FirstOrDefault(x => (string)x.Attribute("name") == name);
             if (data == null)
             {
                 data = new XElement("data",
@@ -206,7 +184,6 @@ namespace LocalizeExtension
             {
                 data.Element("value").Value = value;
             }
-
             doc.Save(full);
             return true;
         }
