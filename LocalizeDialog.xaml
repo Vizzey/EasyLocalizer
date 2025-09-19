@@ -37,6 +37,7 @@
                     </DockPanel>
                     <TextBlock  Margin="0,15,0,0" Text="Key Format:" FontSize="12"/>
                     <ComboBox x:Name="cmbSelectOption" Margin="0,2,0,12" Height="28" FontSize="13"/>
+                    <CheckBox x:Name="chkNormalizeName" FontSize="13" Checked="NormalizeName" Unchecked="DenormalizeName">Normalize resource name</CheckBox>
                 </StackPanel>
             </Expander>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,5,0,0">

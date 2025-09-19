@@ -11,6 +11,9 @@ using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Settings;
 using MessageBox = System.Windows.MessageBox;
+using System.Text;
+using System.Windows.Navigation;
+using System.Globalization;
 
 namespace LocalizeExtension
 {
@@ -21,6 +24,7 @@ namespace LocalizeExtension
         private const string PrefixKey = "KeyPrefix";
         private const string ResxPathKey = "ResxPath";
         private const string UseAtSignKey = "UseAtSign";
+        private const string NormalizeNameKey = "NormalizeName";
 
         public string ResourceName { get; private set; }
         public string ResourceValue { get; private set; }
@@ -104,6 +108,8 @@ namespace LocalizeExtension
                     txtResXPath.Text = store.GetString(CollectionPath, ResxPathKey, "Resources/Localization.resx");
                 if (store.PropertyExists(CollectionPath, UseAtSignKey))
                     _useAtSign = store.GetBoolean(CollectionPath, UseAtSignKey, true);
+                if (store.PropertyExists(CollectionPath, NormalizeNameKey))
+                    chkNormalizeName.IsChecked = store.GetBoolean(CollectionPath, NormalizeNameKey, false);
             }
         }
 
@@ -148,6 +154,7 @@ namespace LocalizeExtension
             store.SetString(CollectionPath, ResxPathKey, txtResXPath.Text.Trim());
             // Сохраняем выбранную опцию (использование @)
             store.SetBoolean(CollectionPath, UseAtSignKey, cmbSelectOption.SelectedIndex == 0);
+            store.SetBoolean(CollectionPath, NormalizeNameKey, chkNormalizeName.IsChecked.GetValueOrDefault());
         }
 
         private void Ok_Click(object sender, RoutedEventArgs e)
@@ -249,6 +256,63 @@ namespace LocalizeExtension
                 _localeFields.Add(field);
             }
             LocalesPanel.ItemsSource = _localeFields;
+        }
+
+        private void NormalizeName(object sender, RoutedEventArgs e)
+        {
+            txtName.Text = Normalize(txtName.Text);
+        }
+
+        private string Normalize(string name)
+        {
+            StringBuilder sb = new(name.Length);
+
+            for (int i = 0; i < name.Length; i++)
+            {
+                char c = name[i];
+                if (char.IsLetterOrDigit(c))
+                {
+                    sb.Append(c);
+                }
+                else if (c == '&')
+                {
+                    int start = i;
+                    while(c != ';')
+                    {
+                        i++;
+                        c = name[i];
+                    }
+                    sb.Append(Replace(name.Substring(start + 1, i - 1 - start)));
+                }
+                else if(c == '#')
+                {
+                    sb.Append(" no ");
+                }
+                else if (c == ' ')
+                {
+                    sb.Append(' ');
+                }
+            }
+
+            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(sb.ToString().ToLower()).Replace(" ", "");
+        }
+
+        private string Replace(string entity)
+        {
+            return entity switch
+            {
+                "auml" => "ae",
+                "ouml" => "oe",
+                "uuml" => "ue",
+                "szlig" => "ss",
+                "amp" => " and ",
+                _ => entity
+            };
+        }
+
+        private void DenormalizeName(object sender, RoutedEventArgs e)
+        {
+            txtName.Text = txtValue.Text;
         }
     }
 
