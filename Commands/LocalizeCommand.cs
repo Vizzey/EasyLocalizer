@@ -129,9 +129,7 @@ namespace LocalizeExtension
             if (left == wrapStart && right == wrapEnd)
                 return;
 
-            bool hasQuotes = original.Length > 1 && original.StartsWith("\"") && original.EndsWith("\"");
-            string inner = hasQuotes ? original.Substring(1, original.Length - 2) : original;
-            string newText = useAtSign ? $"@{prefix}[\"{inner}\"]" : $"{prefix}[\"{inner}\"]";
+            string newText = useAtSign ? $"@{prefix}[\"{resName}\"]" : $"{prefix}[\"{resName}\"]";
 
             var startPt = sel.TopPoint.CreateEditPoint();
             var endPt = sel.BottomPoint.CreateEditPoint();
